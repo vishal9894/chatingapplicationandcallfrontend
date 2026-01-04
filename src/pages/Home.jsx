@@ -549,7 +549,7 @@ const Home = () => {
                                 : "bg-white text-gray-800 border border-gray-100"
                             } transition-all duration-300 hover:shadow-md`}
                           >
-                           <div className="flex items-center h-full gap-2">
+                           <div className="flex items-center h-full gap-1">
                              <p className="text-sm w-full leading-relaxed break-words">{msg.message}</p>
                             <div className={`flex justify-between items-center text-xs ${
                               msg.author === socket.id ? "text-white/70" : "text-gray-400"
