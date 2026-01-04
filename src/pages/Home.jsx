@@ -421,7 +421,7 @@ const Home = () => {
   };
   
   return (
-    <div className="min-h-screen  bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center lg:p-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
       {/* Call Error Notification */}
       {callError && (
         <div className="fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-slideDown">
@@ -450,9 +450,9 @@ const Home = () => {
       ) : (
         /* CHAT ROOM */
         <div className="relative w-full max-w-4xl">
-          {/* <div className="absolute -inset-4 bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 rounded-3xl blur-xl opacity-10 animate-gradient-xy"></div> */}
+          <div className="absolute -inset-4 bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 rounded-3xl blur-xl opacity-10 animate-gradient-xy"></div>
           
-          <div className="relative h-[100vh] lg:h-full bg-white/95 backdrop-blur-sm lg:rounded-2xl lg:shadow-2xl border border-gray-100 overflow-hidden">
+          <div className="relative bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
             {/* Header */}
             <div className="bg-gradient-to-r from-blue-500 to-purple-500 px-6 py-4">
               <div className="flex flex-row md:items-center justify-between gap-4">
@@ -510,7 +510,7 @@ const Home = () => {
             </div>
 
             {/* Chat and Messages Container */}
-            <div className="flex flex-col md:flex-row h-[72vh] md:h-[70vh]">
+            <div className="flex flex-col md:flex-row h-[500px]">
               {/* Messages Container */}
               <div className="flex-1 px-4 py-4 overflow-y-auto bg-gradient-to-b from-gray-50/50 to-gray-100/50">
                 {messages.length === 0 ? (
