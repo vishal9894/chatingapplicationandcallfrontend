@@ -16,6 +16,7 @@ const App = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [callStatus, setCallStatus] = useState("");
+  const [callError, setCallError] = useState("");
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -31,58 +32,125 @@ const App = () => {
   };
 
   useEffect(() => {
+    // Connection established
+    socket.on("connected", (data) => {
+      console.log("Connected to server:", data);
+    });
+
     // Chat message listener
     socket.on("receive_message", (data) => {
       setMessages((prev) => [...prev, data]);
     });
 
+    // Room joined
+    socket.on("room_joined", (data) => {
+      console.log("Room joined:", data);
+    });
+
     // Incoming call listener
-    socket.on("incoming_call", ({ from, offer, callType }) => {
-      setIncomingCall({ from, offer, callType });
+    socket.on("incoming_call", ({ from, offer, callType, room }) => {
+      console.log("Incoming call from:", from);
+      setIncomingCall({ from, offer, callType, room });
       setCallStatus("Incoming call...");
     });
 
     // Call accepted listener
-    socket.on("call_accepted", async ({ answer }) => {
+    socket.on("call_accepted", async ({ answer, from }) => {
+      console.log("Call accepted by:", from);
       if (peerConnectionRef.current) {
-        await peerConnectionRef.current.setRemoteDescription(
-          new RTCSessionDescription(answer)
-        );
-        setCallStatus("Call connected");
+        try {
+          await peerConnectionRef.current.setRemoteDescription(
+            new RTCSessionDescription(answer)
+          );
+          setCallStatus("Call connected");
+          setIsCallActive(true);
+        } catch (error) {
+          console.error("Error setting remote description:", error);
+          setCallError("Failed to accept call");
+        }
       }
     });
 
     // ICE candidate listener
-    socket.on("ice_candidate", async ({ candidate }) => {
+    socket.on("ice_candidate", async ({ candidate, from }) => {
+      console.log("ICE candidate from:", from);
       if (peerConnectionRef.current && candidate) {
         try {
           await peerConnectionRef.current.addIceCandidate(
             new RTCIceCandidate(candidate)
           );
         } catch (error) {
-          console.error("Error adding received ICE candidate:", error);
+          console.error("Error adding ICE candidate:", error);
         }
       }
     });
 
     // Call ended listener
-    socket.on("call_ended", () => {
+    socket.on("call_ended", ({ from, reason }) => {
+      console.log("Call ended by:", from, "Reason:", reason);
       endCall();
-      setCallStatus("Call ended");
+      setCallStatus(reason || "Call ended");
+    });
+
+    // Call rejected listener
+    socket.on("call_rejected", ({ from, reason }) => {
+      console.log("Call rejected by:", from);
+      setCallStatus("Call rejected");
+      endCall();
+    });
+
+    // Call failed listener
+    socket.on("call_failed", ({ message }) => {
+      console.log("Call failed:", message);
+      setCallError(message);
+      endCall();
+    });
+
+    // Call error listener
+    socket.on("call_error", ({ message }) => {
+      console.log("Call error:", message);
+      setCallError(message);
+      endCall();
+    });
+
+    // User joined/left
+    socket.on("user_joined", ({ userId }) => {
+      console.log("User joined:", userId);
+    });
+
+    socket.on("user_left", ({ userId }) => {
+      console.log("User left:", userId);
     });
 
     return () => {
+      socket.off("connected");
       socket.off("receive_message");
+      socket.off("room_joined");
       socket.off("incoming_call");
       socket.off("call_accepted");
       socket.off("ice_candidate");
       socket.off("call_ended");
+      socket.off("call_rejected");
+      socket.off("call_failed");
+      socket.off("call_error");
+      socket.off("user_joined");
+      socket.off("user_left");
     };
   }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    // Clear call error after 5 seconds
+    if (callError) {
+      const timer = setTimeout(() => {
+        setCallError("");
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [callError]);
 
   const joinRoom = () => {
     if (room.trim()) {
@@ -112,9 +180,13 @@ const App = () => {
   // WebRTC Functions
   const initializeMedia = async (type) => {
     try {
+      setCallStatus("Accessing camera/microphone...");
       const constraints = {
         audio: true,
-        video: type === "video" ? true : false,
+        video: type === "video" ? {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        } : false,
       };
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -124,9 +196,11 @@ const App = () => {
         localVideoRef.current.srcObject = stream;
       }
 
+      setCallStatus("Media initialized");
       return stream;
     } catch (error) {
       console.error("Error accessing media devices:", error);
+      setCallError("Failed to access camera/microphone. Please check permissions.");
       return null;
     }
   };
@@ -153,43 +227,68 @@ const App = () => {
         }
       };
 
+      // Handle connection state
+      peerConnection.onconnectionstatechange = (event) => {
+        console.log("Connection state:", peerConnection.connectionState);
+        switch (peerConnection.connectionState) {
+          case "connected":
+            setCallStatus("Connected");
+            break;
+          case "disconnected":
+          case "failed":
+            setCallStatus("Connection failed");
+            endCall();
+            break;
+          case "closed":
+            endCall();
+            break;
+        }
+      };
+
       // Handle remote stream
       peerConnection.ontrack = (event) => {
+        console.log("Received remote stream");
         const remoteStream = event.streams[0];
         setRemoteStream(remoteStream);
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = remoteStream;
         }
+        setIsCallActive(true);
+        setCallStatus("Call active");
       };
 
       return peerConnection;
     } catch (error) {
       console.error("Error creating peer connection:", error);
+      setCallError("Failed to create connection");
       return null;
     }
   };
 
   const startCall = async (type) => {
     try {
+      setCallError("");
       setCallType(type);
-      setCallStatus("Initializing call...");
+      setCallStatus("Starting call...");
 
       // Get media stream
       const stream = await initializeMedia(type);
       if (!stream) {
-        setCallStatus("Failed to access media");
         return;
       }
 
       // Create peer connection
       const peerConnection = await createPeerConnection();
       if (!peerConnection) {
-        setCallStatus("Failed to create connection");
         return;
       }
 
       // Create and send offer
-      const offer = await peerConnection.createOffer();
+      const offer = await peerConnection.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: type === "video",
+      });
+      
       await peerConnection.setLocalDescription(offer);
 
       socket.emit("call_user", {
@@ -198,11 +297,12 @@ const App = () => {
         callType: type,
       });
 
-      setIsCallActive(true);
       setCallStatus("Calling...");
     } catch (error) {
       console.error("Error starting call:", error);
+      setCallError("Failed to start call");
       setCallStatus("Call failed");
+      endCall();
     }
   };
 
@@ -210,20 +310,19 @@ const App = () => {
     try {
       if (!incomingCall) return;
 
+      setCallError("");
       setCallType(incomingCall.callType);
       setCallStatus("Answering call...");
 
       // Get media stream
       const stream = await initializeMedia(incomingCall.callType);
       if (!stream) {
-        setCallStatus("Failed to access media");
         return;
       }
 
       // Create peer connection
       const peerConnection = await createPeerConnection();
       if (!peerConnection) {
-        setCallStatus("Failed to create connection");
         return;
       }
 
@@ -246,31 +345,40 @@ const App = () => {
       setCallStatus("Call connected");
     } catch (error) {
       console.error("Error answering call:", error);
+      setCallError("Failed to answer call");
       setCallStatus("Answer failed");
+      endCall();
     }
   };
 
   const rejectCall = () => {
-    socket.emit("end_call", { room });
+    socket.emit("reject_call", { room });
     setIncomingCall(null);
     setCallStatus("Call rejected");
   };
 
   const endCall = () => {
+    console.log("Ending call...");
+    
+    // Emit end call event
+    socket.emit("end_call", { room });
+
+    // Close peer connection
     if (peerConnectionRef.current) {
       peerConnectionRef.current.close();
       peerConnectionRef.current = null;
     }
 
+    // Stop local stream
     if (localStream) {
       localStream.getTracks().forEach((track) => track.stop());
       setLocalStream(null);
     }
 
-    if (remoteStream) {
-      setRemoteStream(null);
-    }
+    // Clear remote stream
+    setRemoteStream(null);
 
+    // Clear video elements
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = null;
     }
@@ -279,11 +387,13 @@ const App = () => {
       remoteVideoRef.current.srcObject = null;
     }
 
+    // Reset state
     setIsCallActive(false);
     setIncomingCall(null);
     setCallType(null);
     setIsMuted(false);
     setIsVideoOff(false);
+    setCallStatus("");
   };
 
   const toggleMute = () => {
@@ -306,8 +416,23 @@ const App = () => {
     }
   };
 
+  // Rest of your JSX remains the same...
+  // [Keep all the JSX code from your previous message, it's already good]
+  
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
+      {/* Call Error Notification */}
+      {callError && (
+        <div className="fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-slideDown">
+          <div className="flex items-center">
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            {callError}
+          </div>
+        </div>
+      )}
+
       {/* Incoming Call Modal */}
       {incomingCall && !isCallActive && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -328,6 +453,7 @@ const App = () => {
                 Incoming {incomingCall.callType === "video" ? "Video" : "Audio"} Call
               </h2>
               <p className="text-gray-600">Room: {room}</p>
+              <p className="text-sm text-gray-500 mt-2">From: {incomingCall.from?.substring(0, 8)}...</p>
             </div>
 
             <div className="flex gap-4">
@@ -440,7 +566,7 @@ const App = () => {
             {/* Call Status */}
             <div className="absolute top-8 left-0 right-0 text-center">
               <div className="inline-block bg-black/50 backdrop-blur-sm text-white px-4 py-2 rounded-full">
-                {callStatus}
+                {callStatus || (callType === "video" ? "Video Call" : "Audio Call")}
               </div>
             </div>
           </div>
@@ -448,7 +574,7 @@ const App = () => {
       )}
 
       {!joined ? (
-        /* JOIN ROOM - Enhanced with animations */
+        // Join Room UI (same as before)
         <div className="relative">
           {/* Background decorative elements */}
           <div className="absolute -inset-4 bg-gradient-to-r from-blue-500 to-purple-500 rounded-3xl blur-lg opacity-10 animate-pulse"></div>
@@ -501,13 +627,12 @@ const App = () => {
           </div>
         </div>
       ) : (
-        /* CHAT ROOM - Enhanced with animations */
+        /* CHAT ROOM */
         <div className="relative w-full max-w-4xl">
-          {/* Animated background effect */}
           <div className="absolute -inset-4 bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 rounded-3xl blur-xl opacity-10 animate-gradient-xy"></div>
           
           <div className="relative bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
-            {/* Header with gradient */}
+            {/* Header */}
             <div className="bg-gradient-to-r from-blue-500 to-purple-500 px-6 py-4">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-center space-x-3">
@@ -527,23 +652,23 @@ const App = () => {
                   <button
                     onClick={() => startCall("audio")}
                     disabled={isCallActive}
-                    className="px-2 py-2 rounded-full bg-green-500 text-white font-semibold  hover:bg-green-600 transition-all duration-300 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
+                    className="px-4 py-2 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition-all duration-300 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                     </svg>
-                   
+                    Audio Call
                   </button>
                   
                   <button
                     onClick={() => startCall("video")}
                     disabled={isCallActive}
-                    className="px-2 py-2 bg-blue-500 text-white font-semibold rounded-full hover:bg-blue-600 transition-all duration-300 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
+                    className="px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-all duration-300 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                     </svg>
-                   
+                    Video Call
                   </button>
                   
                   <button
@@ -620,7 +745,70 @@ const App = () => {
                 )}
               </div>
 
-             
+              {/* Call Status Panel */}
+              <div className="md:w-64 border-t md:border-t-0 md:border-l border-gray-100 bg-white/50 backdrop-blur-sm p-4">
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <h3 className="font-semibold text-gray-700 mb-2">Call Status</h3>
+                    <div className={`px-3 py-2 rounded-lg ${isCallActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                      {isCallActive ? 'Call Active' : 'No Active Call'}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => startCall("audio")}
+                      disabled={isCallActive}
+                      className="w-full px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                      </svg>
+                      Start Audio Call
+                    </button>
+                    
+                    <button
+                      onClick={() => startCall("video")}
+                      disabled={isCallActive}
+                      className="w-full px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                      Start Video Call
+                    </button>
+                  </div>
+                  
+                  {isCallActive && (
+                    <div className="space-y-2">
+                      <button
+                        onClick={toggleMute}
+                        className={`w-full px-4 py-2 rounded-lg flex items-center justify-center gap-2 ${
+                          isMuted ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-800 hover:bg-gray-900'
+                        } text-white transition-colors duration-300`}
+                      >
+                        {isMuted ? 'Unmute' : 'Mute'}
+                      </button>
+                      {callType === "video" && (
+                        <button
+                          onClick={toggleVideo}
+                          className={`w-full px-4 py-2 rounded-lg flex items-center justify-center gap-2 ${
+                            isVideoOff ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-800 hover:bg-gray-900'
+                          } text-white transition-colors duration-300`}
+                        >
+                          {isVideoOff ? 'Turn Video On' : 'Turn Video Off'}
+                        </button>
+                      )}
+                      <button
+                        onClick={endCall}
+                        className="w-full px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors duration-300"
+                      >
+                        End Call
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Input Area */}
@@ -654,7 +842,6 @@ const App = () => {
         </div>
       )}
 
-      {/* Add custom CSS for animations */}
       <style jsx>{`
         @keyframes gradient-xy {
           0%, 100% {
