@@ -415,9 +415,6 @@ const App = () => {
       }
     }
   };
-
-  // Rest of your JSX remains the same...
-  // [Keep all the JSX code from your previous message, it's already good]
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
@@ -634,7 +631,7 @@ const App = () => {
           <div className="relative bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
             {/* Header */}
             <div className="bg-gradient-to-r from-blue-500 to-purple-500 px-6 py-4">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex flex-row md:items-center justify-between gap-4">
                 <div className="flex items-center space-x-3">
                   <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
                     <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -652,23 +649,23 @@ const App = () => {
                   <button
                     onClick={() => startCall("audio")}
                     disabled={isCallActive}
-                    className="px-4 py-2 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition-all duration-300 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
+                    className="px-2 py-2 bg-green-500 text-white font-semibold rounded-full hover:bg-green-600 transition-all duration-300 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                     </svg>
-                    Audio Call
+                    
                   </button>
                   
                   <button
                     onClick={() => startCall("video")}
                     disabled={isCallActive}
-                    className="px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-all duration-300 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
+                    className="px-2 py-2 bg-blue-500 text-white font-semibold rounded-full hover:bg-blue-600 transition-all duration-300 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                     </svg>
-                    Video Call
+                    
                   </button>
                   
                   <button
@@ -745,70 +742,6 @@ const App = () => {
                 )}
               </div>
 
-              {/* Call Status Panel */}
-              <div className="md:w-64 border-t md:border-t-0 md:border-l border-gray-100 bg-white/50 backdrop-blur-sm p-4">
-                <div className="space-y-4">
-                  <div className="text-center">
-                    <h3 className="font-semibold text-gray-700 mb-2">Call Status</h3>
-                    <div className={`px-3 py-2 rounded-lg ${isCallActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
-                      {isCallActive ? 'Call Active' : 'No Active Call'}
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <button
-                      onClick={() => startCall("audio")}
-                      disabled={isCallActive}
-                      className="w-full px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                      </svg>
-                      Start Audio Call
-                    </button>
-                    
-                    <button
-                      onClick={() => startCall("video")}
-                      disabled={isCallActive}
-                      className="w-full px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                      </svg>
-                      Start Video Call
-                    </button>
-                  </div>
-                  
-                  {isCallActive && (
-                    <div className="space-y-2">
-                      <button
-                        onClick={toggleMute}
-                        className={`w-full px-4 py-2 rounded-lg flex items-center justify-center gap-2 ${
-                          isMuted ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-800 hover:bg-gray-900'
-                        } text-white transition-colors duration-300`}
-                      >
-                        {isMuted ? 'Unmute' : 'Mute'}
-                      </button>
-                      {callType === "video" && (
-                        <button
-                          onClick={toggleVideo}
-                          className={`w-full px-4 py-2 rounded-lg flex items-center justify-center gap-2 ${
-                            isVideoOff ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-800 hover:bg-gray-900'
-                          } text-white transition-colors duration-300`}
-                        >
-                          {isVideoOff ? 'Turn Video On' : 'Turn Video Off'}
-                        </button>
-                      )}
-                      <button
-                        onClick={endCall}
-                        className="w-full px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors duration-300"
-                      >
-                        End Call
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
             </div>
 
             {/* Input Area */}
